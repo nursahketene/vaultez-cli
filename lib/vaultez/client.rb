@@ -5,16 +5,21 @@ require "uri"
 module Vaultez
   class Client
     def initialize
-      @api_url = Vaultez::Config.api_url
-      @token   = Vaultez::Config.token
+      @api_url       = Vaultez::Config.api_url
+      @token         = Vaultez::Config.token
+      @project_token = ENV["VAULTEZ_TOKEN"]
     end
 
-    def login(email, password)
-      post("/api/v1/auth/login", { email: email, password: password }, authenticated: false)
+    def login(email, password, otp_code)
+      post("/api/v1/auth/login", { email: email, password: password, otp_code: otp_code }, authenticated: false)
     end
 
     def logout
       delete("/api/v1/auth/logout")
+    end
+
+    def project_token_mode?
+      !@project_token.nil?
     end
 
     def companies
@@ -53,8 +58,9 @@ module Vaultez
       req["Accept"]       = "application/json"
 
       if authenticated
-        raise Vaultez::NotAuthenticatedError, "Not logged in. Run `vaultez login` first." unless @token
-        req["Authorization"] = "Bearer #{@token}"
+        active_token = @project_token || @token
+        raise Vaultez::NotAuthenticatedError, "Not logged in. Run `vaultez login` first, or set VAULTEZ_TOKEN." unless active_token
+        req["Authorization"] = "Bearer #{active_token}"
       end
 
       req.body = body.to_json if body
@@ -75,9 +81,10 @@ module Vaultez
 
       case response.code.to_i
       when 200, 201 then body
-      when 401 then raise Vaultez::AuthenticationError, body["error"] || "Authentication failed"
-      when 404 then raise Vaultez::NotFoundError,       body["error"] || "Not found"
-      else          raise Vaultez::ApiError,            body["error"] || "API error (#{response.code})"
+      when 401 then raise Vaultez::AuthenticationError,    body["error"] || "Authentication failed"
+      when 403 then raise Vaultez::TwoFactorRequiredError, body["error"] || "Two-factor authentication required"
+      when 404 then raise Vaultez::NotFoundError,          body["error"] || "Not found"
+      else          raise Vaultez::ApiError,               body["error"] || "API error (#{response.code})"
       end
     end
   end

@@ -26,7 +26,7 @@ module Vaultez
     end
 
     def self.token
-      get("token")
+      ENV["VAULTEZ_TOKEN"] || get("token")
     end
 
     def self.api_url
