@@ -69,6 +69,7 @@ module Vaultez
     option :projects,  type: :boolean, desc: "List projects in a company"
     option :project,   type: :string,  desc: "Project name"
     option :secret,    type: :string,  desc: "Secret name (returns value only)"
+    option :json,      type: :boolean, desc: "Output as JSON (errors go to stderr)"
     def fetch; super; end
 
     desc "config", "Set default company or token"

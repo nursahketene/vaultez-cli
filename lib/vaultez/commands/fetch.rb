@@ -1,3 +1,5 @@
+require "json"
+
 module Vaultez
   module Commands
     module Fetch
@@ -15,33 +17,45 @@ module Vaultez
         elsif options[:project]
           fetch_secrets(client)
         else
-          puts "Error: not enough options. See `vaultez help fetch`."
-          exit 1
+          fail!("not enough options. See `vaultez help fetch`.")
         end
       rescue Vaultez::NotAuthenticatedError => error
-        puts "Error: #{error.message}"
-        exit 1
+        fail!(error.message)
       rescue Vaultez::NotFoundError => error
-        puts "Error: #{error.message}"
-        exit 1
+        fail!(error.message)
       rescue Vaultez::ApiError => error
-        puts "Error: #{error.message}"
-        exit 1
+        fail!(error.message)
       end
 
       private
+
+      def fail!(message)
+        if options[:json]
+          warn "Error: #{message}"
+        else
+          puts "Error: #{message}"
+        end
+        exit 1
+      end
 
       def fetch_with_project_token(client)
         if options[:secret]
           secrets = fetch_all_secrets_for_token(client)
           secret  = secrets.find { |s| s["name"] == options[:secret] }
           unless secret
-            puts "Error: secret \"#{options[:secret]}\" not found."
-            exit 1
+            fail!("secret \"#{options[:secret]}\" not found.")
           end
-          print secret["value"]
+          if options[:json]
+            puts secret.to_json
+          else
+            print secret["value"]
+          end
         else
           secrets = fetch_all_secrets_for_token(client)
+          if options[:json]
+            puts secrets.to_json
+            return
+          end
           if secrets.empty?
             puts "No secrets found."
             return
@@ -54,20 +68,22 @@ module Vaultez
         companies = client.companies
         company   = companies.first
         unless company
-          puts "Error: no company found for this token."
-          exit 1
+          fail!("no company found for this token.")
         end
         projects = client.projects(company["id"])
         project  = projects.first
         unless project
-          puts "Error: no project found for this token."
-          exit 1
+          fail!("no project found for this token.")
         end
         client.secrets(project["id"])
       end
 
       def fetch_companies(client)
         companies = client.companies
+        if options[:json]
+          puts companies.to_json
+          return
+        end
         if companies.empty?
           puts "No companies found."
           return
@@ -81,6 +97,10 @@ module Vaultez
       def fetch_projects(client)
         company  = resolve_company(client)
         projects = client.projects(company["id"])
+        if options[:json]
+          puts projects.to_json
+          return
+        end
         if projects.empty?
           puts "No projects found in #{company["name"]}."
           return
@@ -95,6 +115,10 @@ module Vaultez
         company = resolve_company(client)
         project = resolve_project(client, company)
         secrets = client.secrets(project["id"])
+        if options[:json]
+          puts secrets.to_json
+          return
+        end
         if secrets.empty?
           puts "No secrets found in #{project["name"]}."
           return
@@ -111,11 +135,14 @@ module Vaultez
         secret  = secrets.find { |s| s["name"] == options[:secret] }
 
         unless secret
-          puts "Error: secret \"#{options[:secret]}\" not found in #{project["name"]}."
-          exit 1
+          fail!("secret \"#{options[:secret]}\" not found in #{project["name"]}.")
         end
 
-        print secret["value"]
+        if options[:json]
+          puts secret.to_json
+        else
+          print secret["value"]
+        end
       end
 
       def resolve_company(client)
@@ -124,8 +151,7 @@ module Vaultez
         if options[:company]
           company = companies.find { |c| c["name"] == options[:company] }
           unless company
-            puts "Error: company \"#{options[:company]}\" not found."
-            exit 1
+            fail!("company \"#{options[:company]}\" not found.")
           end
           return company
         end
@@ -138,16 +164,14 @@ module Vaultez
 
         return companies.first if companies.size == 1
 
-        puts "Error: multiple companies found. Specify one with --company or set a default with `vaultez config --default-company`."
-        exit 1
+        fail!("multiple companies found. Specify one with --company or set a default with `vaultez config --default-company`.")
       end
 
       def resolve_project(client, company)
         projects = client.projects(company["id"])
         project  = projects.find { |p| p["name"] == options[:project] }
         unless project
-          puts "Error: project \"#{options[:project]}\" not found in #{company["name"]}."
-          exit 1
+          fail!("project \"#{options[:project]}\" not found in #{company["name"]}.")
         end
         project
       end
