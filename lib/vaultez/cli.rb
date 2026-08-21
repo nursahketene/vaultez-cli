@@ -12,14 +12,6 @@ module Vaultez
 
     map %w[--version -v] => :__version
 
-    class_option :token, type: :string, banner: "TOKEN",
-                         desc: "Use a project token instead of the saved session"
-
-    def initialize(*args)
-      super
-      ENV["VAULTEZ_TOKEN"] = options[:token] if options[:token]
-    end
-
     desc "login", "Authenticate with email, password, and 2FA code"
     long_desc <<~DESC, wrap: false
       Authenticate with your Vaultez account. You will be prompted for your
@@ -55,14 +47,17 @@ module Vaultez
         vaultez fetch --company="Acme" --project="Backend"
         vaultez fetch --company="Acme" --project="Backend" --secret="DATABASE_URL"
 
-      PROJECT TOKEN (VAULTEZ_TOKEN env var or --token flag):
+      PROJECT TOKEN (VAULTEZ_TOKEN env var):
         When a project token is active, it already knows which project to use.
         No --project flag is needed.
 
         VAULTEZ_TOKEN=vz_... vaultez fetch
-        vaultez fetch --token=vz_... --secret="DATABASE_URL"
+        VAULTEZ_TOKEN=vz_... vaultez fetch --secret="DATABASE_URL"
 
       Project tokens can be created in the Tokens tab of your project settings.
+      Always pass the token via the VAULTEZ_TOKEN environment variable, never
+      as a command-line flag — CLI arguments are visible to other local users
+      via `ps` and get saved in shell history.
     DESC
     option :companies, type: :boolean, desc: "List all your companies"
     option :company,   type: :string,  desc: "Company name"
@@ -103,15 +98,14 @@ module Vaultez
         puts "  help        Show help for any command"
         puts
         puts "Options:"
-        puts "  --token     Use a project token instead of the saved session"
         puts "  --version   Show the installed CLI version"
         puts
         puts "Examples:"
         puts "  vaultez login"
         puts "  vaultez fetch --project=\"Backend\""
         puts "  vaultez fetch --project=\"Backend\" --secret=\"DATABASE_URL\""
-        puts "  vaultez fetch --token=\"vz_...\""
-        puts "  vaultez fetch --token=\"vz_...\" --secret=\"DATABASE_URL\""
+        puts "  VAULTEZ_TOKEN=\"vz_...\" vaultez fetch"
+        puts "  VAULTEZ_TOKEN=\"vz_...\" vaultez fetch --secret=\"DATABASE_URL\""
       end
     end
   end

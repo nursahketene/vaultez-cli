@@ -82,6 +82,25 @@ Update your local CLI configuration.
 vaultez config --default-company="Acme"
 ```
 
+## Project tokens
+
+For CI/scripts, you can authenticate with a project token instead of a personal
+session. Create one in the Tokens tab of your project settings, then set it via
+the `VAULTEZ_TOKEN` environment variable:
+
+```bash
+VAULTEZ_TOKEN="vz_..." vaultez fetch
+VAULTEZ_TOKEN="vz_..." vaultez fetch --secret="DATABASE_URL"
+```
+
+A project token already knows which project it belongs to, so no `--project`
+flag is needed.
+
+> **Never pass a token as a command-line flag** (e.g. `--token=vz_...`). CLI
+> arguments are visible to every other local user via `ps` for as long as the
+> process runs, and get saved in your shell history. Always use the
+> `VAULTEZ_TOKEN` environment variable instead.
+
 ## How it works
 
 The CLI authenticates against the Vaultez API and respects the same access
