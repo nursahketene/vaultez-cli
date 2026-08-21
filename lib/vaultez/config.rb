@@ -41,12 +41,30 @@ module Vaultez
 
     def self.read
       return {} unless File.exist?(CONFIG_PATH)
+      tighten_permissions
       YAML.safe_load(File.read(CONFIG_PATH)) || {}
     end
 
     def self.write(data)
-      FileUtils.mkdir_p(File.dirname(CONFIG_PATH))
-      File.write(CONFIG_PATH, data.to_yaml)
+      dir = File.dirname(CONFIG_PATH)
+      FileUtils.mkdir_p(dir, mode: 0o700)
+      # The mode argument to mkdir_p/File.open only applies at creation time,
+      # so explicitly chmod too - this also retroactively tightens a config
+      # directory/file that was created before this fix, which would
+      # otherwise stay world-readable forever (0644/0755 by default umask).
+      File.chmod(0o700, dir)
+      File.open(CONFIG_PATH, File::CREAT | File::TRUNC | File::WRONLY, 0o600) do |f|
+        f.write(data.to_yaml)
+      end
+      File.chmod(0o600, CONFIG_PATH)
+    end
+
+    def self.tighten_permissions
+      dir = File.dirname(CONFIG_PATH)
+      File.chmod(0o700, dir) if File.directory?(dir) && (File.stat(dir).mode & 0o777) != 0o700
+      File.chmod(0o600, CONFIG_PATH) if (File.stat(CONFIG_PATH).mode & 0o777) != 0o600
+    rescue StandardError
+      nil # best-effort; never block a read over a permissions fix
     end
   end
 end
