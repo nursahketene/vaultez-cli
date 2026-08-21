@@ -51,7 +51,9 @@ module Vaultez
     def request(method, path, body = nil, authenticated: true)
       uri  = URI("#{@api_url}#{path}")
       http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = uri.scheme == "https"
+      http.use_ssl      = uri.scheme == "https"
+      http.open_timeout = 10
+      http.read_timeout = 15
 
       req = build_request(method, uri)
       req["Content-Type"] = "application/json"
@@ -65,7 +67,13 @@ module Vaultez
 
       req.body = body.to_json if body
 
-      parse_response(http.request(req))
+      begin
+        response = http.request(req)
+      rescue StandardError => error
+        raise Vaultez::ApiError, "Could not reach the Vaultez API: #{error.message}"
+      end
+
+      parse_response(response)
     end
 
     def build_request(method, uri)
