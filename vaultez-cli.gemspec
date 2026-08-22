@@ -15,5 +15,10 @@ Gem::Specification.new do |spec|
   spec.executables   = ["vaultez"]
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "thor", "~> 1.0"
+  # Pinned exact, not "~> 1.0": an unpinned range would let gem install
+  # resolve whatever the latest matching thor release happens to be at
+  # install time, with no re-review, the same class of issue already fixed
+  # for this gem's own version pin. 1.5.0 is what's actually been installed
+  # and tested throughout this gem's own development.
+  spec.add_dependency "thor", "1.5.0"
 end
