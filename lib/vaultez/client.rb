@@ -4,6 +4,14 @@ require "uri"
 
 module Vaultez
   class Client
+    # A legitimate response (companies/projects/secrets, all short strings)
+    # is a handful of KB at most. This bounds how much of a compromised or
+    # malicious response - a compromised API backend, a MITM'd/redirected
+    # api_url, or a compromised account crafting an oversized payload - this
+    # process will hold in memory, independent of any size limit a caller
+    # (e.g. the oma-vaultez plugin) enforces on this CLI's own stdout.
+    MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
     def initialize
       @api_url       = Vaultez::Config.api_url
       @token         = Vaultez::Config.token
@@ -68,12 +76,35 @@ module Vaultez
       req.body = body.to_json if body
 
       begin
-        response = http.request(req)
+        response = fetch_bounded(http, req)
+      rescue Vaultez::Error
+        raise
       rescue StandardError => error
         raise Vaultez::ApiError, "Could not reach the Vaultez API: #{error.message}"
       end
 
       parse_response(response)
+    end
+
+    # Reads the response body incrementally instead of Net::HTTP's default
+    # #request behavior, which fully buffers the entire body in memory
+    # before returning with no size limit at all. Aborts (closing the
+    # connection) the moment the body crosses MAX_RESPONSE_BYTES, rather
+    # than finishing the download and only noticing afterward.
+    def fetch_bounded(http, req)
+      response = nil
+      body = +""
+      http.request(req) do |res|
+        response = res
+        res.read_body do |chunk|
+          body << chunk
+          if body.bytesize > MAX_RESPONSE_BYTES
+            raise Vaultez::ApiError, "Vaultez API response exceeded the maximum allowed size"
+          end
+        end
+      end
+      response.body = body
+      response
     end
 
     def build_request(method, uri)
