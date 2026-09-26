@@ -1,5 +1,6 @@
 require "thor"
 require_relative "version"
+require_relative "output"
 require_relative "commands/auth"
 require_relative "commands/fetch"
 require_relative "commands/config_command"
@@ -11,6 +12,12 @@ module Vaultez
     include Vaultez::Commands::ConfigCommand
 
     map %w[--version -v] => :__version
+
+    # Usage errors (unknown flag, bad --format) must exit non-zero, or
+    # `vaultez fetch ... > .env && ./start.sh` carries on as if it worked.
+    def self.exit_on_failure?
+      true
+    end
 
     desc "login", "Authenticate with email, password, and 2FA code"
     long_desc <<~DESC, wrap: false
@@ -54,6 +61,26 @@ module Vaultez
         VAULTEZ_TOKEN=vz_... vaultez fetch
         VAULTEZ_TOKEN=vz_... vaultez fetch --secret="DATABASE_URL"
 
+      OUTPUT FORMATS (--format, for a project's secrets):
+        env      KEY='value' lines, quoted so they are safe to eval or source (default)
+                   eval "$(vaultez fetch --project="Backend")"
+                   set -a; source <(vaultez fetch --project="Backend"); set +a
+        shell    export KEY='value' lines
+        dotenv   a .env file for dotenv, Next.js, Vite or Docker Compose
+                   vaultez fetch --project="Backend" --format=dotenv > .env.local
+        github   entries for $GITHUB_ENV, multi-line values included
+                   vaultez fetch --format=github >> "$GITHUB_ENV"
+        json     a JSON array of {id, name, value} (same as --json)
+
+      Secrets whose names aren't valid variable names (letters, numbers and _,
+      not starting with a number) are skipped, with a warning on stderr. They
+      are still included in json output.
+
+      --secret prints just the value, unquoted, or a JSON object with --format=json.
+
+      Stdout only ever carries data. Errors and notices such as "No secrets
+      found" go to stderr, and errors exit with status 1.
+
       Project tokens can be created in the Tokens tab of your project settings.
       Always pass the token via the VAULTEZ_TOKEN environment variable, never
       as a command-line flag — CLI arguments are visible to other local users
@@ -64,7 +91,8 @@ module Vaultez
     option :projects,  type: :boolean, desc: "List projects in a company"
     option :project,   type: :string,  desc: "Project name"
     option :secret,    type: :string,  desc: "Secret name (returns value only)"
-    option :json,      type: :boolean, desc: "Output as JSON (errors go to stderr)"
+    option :format,    type: :string,  enum: Vaultez::Output::FORMATS, desc: "Output format (default: env)"
+    option :json,      type: :boolean, desc: "Output as JSON (same as --format=json)"
     def fetch; super; end
 
     desc "config", "Set default company or token"

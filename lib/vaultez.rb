@@ -1,5 +1,6 @@
 require_relative "vaultez/version"
 require_relative "vaultez/errors"
+require_relative "vaultez/output"
 require_relative "vaultez/config"
 require_relative "vaultez/client"
 require_relative "vaultez/cli"

@@ -1,4 +1,5 @@
 require "json"
+require_relative "../output"
 
 module Vaultez
   module Commands
@@ -29,13 +30,40 @@ module Vaultez
 
       private
 
+      # Stdout carries only data, so `vaultez fetch > .env` never writes an
+      # error or a notice into the file. Everything else goes to stderr.
       def fail!(message)
-        if options[:json]
-          warn "Error: #{message}"
-        else
-          puts "Error: #{message}"
-        end
+        warn "Error: #{message}"
         exit 1
+      end
+
+      def output_format
+        @output_format ||= begin
+          format = options[:format]
+          if options[:json] && format && format != "json"
+            fail!("--json can't be combined with --format=#{format}.")
+          end
+          format || (options[:json] ? "json" : Vaultez::Output::DEFAULT_FORMAT)
+        end
+      end
+
+      def json?
+        output_format == "json"
+      end
+
+      def print_secret_value(secret)
+        if json?
+          puts secret.to_json
+        else
+          print secret["value"]
+        end
+      end
+
+      def print_secrets(secrets, empty_message)
+        warn empty_message if secrets.empty?
+        text, warnings = Vaultez::Output.render(secrets, output_format)
+        print text
+        warnings.each { |message| warn "Warning: #{message}" }
       end
 
       def fetch_with_project_token(client)
@@ -45,22 +73,9 @@ module Vaultez
           unless secret
             fail!("secret \"#{options[:secret]}\" not found.")
           end
-          if options[:json]
-            puts secret.to_json
-          else
-            print secret["value"]
-          end
+          print_secret_value(secret)
         else
-          secrets = fetch_all_secrets_for_token(client)
-          if options[:json]
-            puts secrets.to_json
-            return
-          end
-          if secrets.empty?
-            puts "No secrets found."
-            return
-          end
-          secrets.each { |s| puts "#{s["name"]}=#{s["value"]}" }
+          print_secrets(fetch_all_secrets_for_token(client), "No secrets found.")
         end
       end
 
@@ -80,12 +95,12 @@ module Vaultez
 
       def fetch_companies(client)
         companies = client.companies
-        if options[:json]
+        if json?
           puts companies.to_json
           return
         end
         if companies.empty?
-          puts "No companies found."
+          warn "No companies found."
           return
         end
         puts "Companies:"
@@ -97,12 +112,12 @@ module Vaultez
       def fetch_projects(client)
         company  = resolve_company(client)
         projects = client.projects(company["id"])
-        if options[:json]
+        if json?
           puts projects.to_json
           return
         end
         if projects.empty?
-          puts "No projects found in #{company["name"]}."
+          warn "No projects found in #{company["name"]}."
           return
         end
         puts "Projects in #{company["name"]}:"
@@ -115,17 +130,7 @@ module Vaultez
         company = resolve_company(client)
         project = resolve_project(client, company)
         secrets = client.secrets(project["id"])
-        if options[:json]
-          puts secrets.to_json
-          return
-        end
-        if secrets.empty?
-          puts "No secrets found in #{project["name"]}."
-          return
-        end
-        secrets.each do |secret|
-          puts "#{secret["name"]}=#{secret["value"]}"
-        end
+        print_secrets(secrets, "No secrets found in #{project["name"]}.")
       end
 
       def fetch_secret(client)
@@ -138,11 +143,7 @@ module Vaultez
           fail!("secret \"#{options[:secret]}\" not found in #{project["name"]}.")
         end
 
-        if options[:json]
-          puts secret.to_json
-        else
-          print secret["value"]
-        end
+        print_secret_value(secret)
       end
 
       def resolve_company(client)

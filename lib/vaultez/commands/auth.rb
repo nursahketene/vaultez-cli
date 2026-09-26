@@ -20,11 +20,11 @@ module Vaultez
         Vaultez::Config.set("token", response["token"])
         puts "Logged in successfully."
       rescue Vaultez::TwoFactorRequiredError => error
-        puts "Error: #{error.message}"
-        puts "Set up two-factor authentication at https://vaultez.app/two_factor/new"
+        warn "Error: #{error.message}"
+        warn "Set up two-factor authentication at https://vaultez.app/two_factor/new"
         exit 1
       rescue Vaultez::AuthenticationError => error
-        puts "Error: #{error.message}"
+        warn "Error: #{error.message}"
         exit 1
       end
 
@@ -34,7 +34,7 @@ module Vaultez
         Vaultez::Config.clear
         puts "Logged out successfully."
       rescue Vaultez::NotAuthenticatedError => error
-        puts "Error: #{error.message}"
+        warn "Error: #{error.message}"
         exit 1
       end
     end
